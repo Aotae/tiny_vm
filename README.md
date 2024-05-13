@@ -166,5 +166,7 @@ The `tiny_vm/bin` directory should now contain two executable programs.
 - `tiny_vm` is the tiny virtual machine that will execute instructions that we generate, first for a calculator and later for Quack programs. 
 
 
+Use bash scripts quack.sh and quackc.sh to compile and run your code and to just compile respectively
+
 
 
