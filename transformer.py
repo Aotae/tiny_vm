@@ -14,7 +14,9 @@ calc_grammar = """
     ?statement: assignment
         | method_call
         | flow
-    
+        | class_decl
+        | method_decl
+
     ?condition: value evaluator value -> conditional
         | value -> boolean
 
@@ -30,20 +32,28 @@ calc_grammar = """
         | elifstmt
         | whilestmt
         
-    ?ifstmt: "if" condition "{" start* "}" elsestmt -> ifcall
+    ?ifstmt: "if" condition "{" codeblock "}" elsestmt -> ifcall
     
-    ?elifstmt: "elif" condition "{" start* "}" -> ifcall
+    ?elifstmt: "elif" condition "{" codeblock "}" elsestmt -> ifcall
     
-    ?elsestmt: "else" "{" start* "}" -> elsecall
+    ?elsestmt: "else" "{" codeblock "}" -> elsecall
         | -> codeblock
     
-    ?whilestmt: "while" condition "{" start* "}" -> whilecall
+    ?whilestmt: "while" condition "{" codeblock "}" -> whilecall
     
     ?assignment: NAME "=" value ";" -> assign_var
 
     ?method_call: value "." NAME "(" argument_list? ")" ";" -> call_method
     
     argument_list: value ("," value)*
+
+    ?class_decl: "class" NAME "{" class_body "}" -> class_declaration
+    
+    class_body: (method_decl | assignment | statement)*
+
+    ?method_decl: "def" NAME "(" param_list? ")" "{" codeblock "}" -> method_declaration
+    
+    param_list: NAME ("," NAME)*
     
     ?value: sum
         | TRUE -> tf
@@ -112,6 +122,15 @@ class ASTGenerator(Transformer):
         node.infer(self.symboltable)
         return node
     
+    def class_declaration(self, name, body):
+        node = ASTutils.ClassDeclaration(name, body)
+        node.infer(self.symboltable)
+        return node
+
+    def method_declaration(self, name, params, body):
+        node = ASTutils.MethodDeclaration(name, params, body)
+        node.infer(self.symboltable)
+        return node
     # EVALUATORS
     
     def gt(self):

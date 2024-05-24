@@ -115,6 +115,41 @@ class BinaryOperation(ASTNode):
         
         return self.inferred_type
 
+class ClassDeclaration(ASTNode):
+    def __init__(self, name, body):
+        self.name = name
+        self.body = body
+        self.inferred_type = name
+        
+    def infer(self, symboltable):
+        symboltable[self.name] = self.inferred_type
+        if isinstance(self.body, t.Tree):
+            for statement in self.body.children:
+                if isinstance(statement, ASTNode):
+                    statement.infer(symboltable)
+        elif isinstance(self.body, ASTNode):
+            self.body.infer(symboltable)
+        return self.inferred_type
+
+class MethodDeclaration(ASTNode):
+    def __init__(self, classname, methodname, params, body):
+        self.classname = classname
+        self.methodname = methodname
+        self.params = params
+        self.body = body
+        self.inferred_type = "Method"
+        
+    def infer(self, symboltable):
+        identifier = f"{self.classname}:{self.methodname}"
+        symboltable[identifier] = self.inferred_type
+        if isinstance(self.body, t.Tree):
+            for statement in self.body.children:
+                if isinstance(statement, ASTNode):
+                    statement.infer(symboltable)
+        elif isinstance(self.body, ASTNode):
+            self.body.infer(symboltable)
+        return self.inferred_type
+
 class Variable(ASTNode):
     def __init__(self, name):
         self.name = name
