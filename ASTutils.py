@@ -34,7 +34,12 @@ class IfStatement(ASTNode):
         self.body = body
           
     def infer(self, symboltable):
-        condition_type = self.condition.infer(symboltable)
+
+        if isinstance(self.condition, t.Tree):
+            for expr in self.condition.children:
+                expr.infer(symboltable)
+        elif isinstance(self.conditon, ASTNode):
+            self.conditon.infer(symboltable)
         # print(self.body)
         # print(self.elsebody.children)
         if isinstance(self.body, t.Tree):
@@ -44,13 +49,22 @@ class IfStatement(ASTNode):
         elif isinstance(self.body, ASTNode):
             self.body.infer(symboltable)
 
+        # if self.elifbodies != None:
+        #     if isinstance(self.elifbodies,t.Tree):
+        #         for elifbody in self.elifbodies.children:
+        #             if isinstance(elifbody.body):
+        #                 pass
+        #     elif isinstance(self.elifbodies, ASTNode):
+        #         pass
+                
         if isinstance(self.elsebody, t.Tree):
+            # print(self.elsebody.children)
             for statement in self.elsebody.children:
                 if isinstance(statement, ASTNode):
                     statement.infer(symboltable)
         elif isinstance(self.elsebody, ASTNode):
             self.elsebody.infer(symboltable)
-        
+                   
 class WhileStatement(ASTNode):
     def __init__(self, condition, body):
         self.condition = condition
@@ -116,8 +130,10 @@ class BinaryOperation(ASTNode):
         return self.inferred_type
 
 class ClassDeclaration(ASTNode):
-    def __init__(self, name, body):
+    def __init__(self, name, args, extends, body):
         self.name = name
+        self.args = args
+        self.extended = extends
         self.body = body
         self.inferred_type = name
         
@@ -189,8 +205,7 @@ class SoloCond(ASTNode):
     def infer(self,symboltable):
         self.inferred_type = self.value.infer(symboltable)
         return self.inferred_type
-            
-            
+                      
 class Methods(ASTNode):
     def __init__(self, obj, method, args=None):
         # print(obj)
@@ -202,7 +217,30 @@ class Methods(ASTNode):
         # should methods have types? the things they return should have a type if it isn't a method 
         # uhh for now pass the variable type and if the var is not in the table we have other problems
         return symboltable.get(self.obj,"Obj")
+
+class ReturnStatement(ASTNode):
+    def __init__(self, value):
+        self.value = value
         
+class FieldAssign(ASTNode):
+    def __init__(self, obj, value):
+        self.obj = obj
+        self.value = value
+        
+class LogicalOperation(ASTNode):
+    def __init__(self, operator, left, right=None):
+        self.operator = operator
+        self.left = left
+        self.right = right
+        
+class NewNode(ASTNode):
+    def __init__(self, name, args):
+        self.type = name
+        self.args = args
+        
+    def infer(self,symboltable):
+        return self.type
+    
 def find_file(start_dir, target_file):
     # Iterate over all files and directories in the start directory
     for root, dirs, files in os.walk(start_dir):

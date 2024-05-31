@@ -8,72 +8,95 @@ import staticsemantics as ss
 
 calc_grammar = """
     ?start: codeblock
-    
+
     codeblock: statement+
-    
+
     ?statement: assignment
         | method_call
         | flow
         | class_decl
-        | method_decl
+        | return_statement
 
     ?condition: value evaluator value -> conditional
         | value -> boolean
+
+    logicalexpr: or_expr
+
+    ?or_expr: and_expr
+        | or_expr "or" and_expr -> or_
+
+    ?and_expr: not_expr
+        | and_expr "and" not_expr -> and_
+
+    ?not_expr: "not" not_expr -> not_
+        | condition
 
     ?evaluator: ">" -> gt
         | "<" -> lt
         | "==" -> equals
         | "!=" -> nequals
-        | "and"
-        | "or"
-        | "not"
-        
+
     ?flow: ifstmt
-        | elifstmt
         | whilestmt
-        
-    ?ifstmt: "if" condition "{" codeblock "}" elsestmt -> ifcall
-    
-    ?elifstmt: "elif" condition "{" codeblock "}" elsestmt -> ifcall
-    
-    ?elsestmt: "else" "{" codeblock "}" -> elsecall
-        | -> codeblock
-    
-    ?whilestmt: "while" condition "{" codeblock "}" -> whilecall
+
+    ?ifstmt: "if" logicalexpr "{" codeblock* "}" elsestmt? -> ifcall
+
+    ?elsestmt: "else" "{" codeblock* "}" -> elsecall
+
+    ?return_statement: "return" value? ";" -> return_stmt
+
+    ?whilestmt: "while" logicalexpr "{" codeblock* "}" -> whilecall
     
     ?assignment: NAME "=" value ";" -> assign_var
+        | field "=" value ";" -> assign_field
 
-    ?method_call: value "." NAME "(" argument_list? ")" ";" -> call_method
-    
+    ?method_call: calls ";"
+
+    ?class_decl: "class" NAME "(" formal_args? ")" "{" class_body "}" -> class_declaration
+        | "class" NAME "(" formal_args? ")" "extends" NAME "{" class_body "}" -> class_declaration_extended
+
+    ?method_decl: "def" NAME "(" argument_list ")" ":" NAME "{" codeblock* "}" -> mthd_p_decl_return
+        | "def" NAME "(" argument_list ")" "{" codeblock* "}" -> mthd_p_decl
+        | "def" NAME "(" ")"  ":" NAME  "{" codeblock* "}" -> mthd_decl_return
+        | "def" NAME "(" ")" "{" codeblock* "}" -> mthd_decl
+
+    formal_args: formal_arg ("," formal_arg)*
+    formal_arg: NAME ":" NAME
+
     argument_list: value ("," value)*
 
-    ?class_decl: "class" NAME "{" class_body "}" -> class_declaration
-    
-    class_body: (method_decl | assignment | statement)*
+    class_body: (method_decl | statement)*
 
-    ?method_decl: "def" NAME "(" param_list? ")" "{" codeblock "}" -> method_declaration
-    
-    param_list: NAME ("," NAME)*
-    
     ?value: sum
         | TRUE -> tf
         | FALSE -> tf
-        
+
     ?sum: product
         | sum "+" product   -> add
         | sum "-" product   -> sub
 
-    ?product: atom
-        | product "*" atom  -> mul
-        | product "/" atom  -> div
+    ?product: calls
+        | product "*" calls  -> mul
+        | product "/" calls  -> div
 
-    ?atom: NUMBER           -> number
-         | STRING -> string
-         | NAME             -> var
-         | "(" sum ")"
+    ?calls: field
+        | method_invocation
+
+    ?field: atom
+        | field "." NAME -> field_access
+
+    ?method_invocation: field "." NAME "(" argument_list? ")" -> call_method
+
+    ?atom: NUMBER -> number
+        | STRING -> string
+        | NAME "(" argument_list? ")" -> new
+        | NAME -> var
+        | "(" sum ")"
+
     TRUE: "true"
     FALSE: "false"
     STRING: /"[^"]*"/
+
     %import common.CNAME -> NAME
     %import common.NUMBER
     %import common.WS_INLINE
@@ -87,9 +110,11 @@ class ASTGenerator(Transformer):
     def __init__(self):
         self.vars = set()
         self.symboltable = {}
-        # this is really hacky and bad
+        # this is really hacky and bad, I don't like this but I think this might be the simplest way to properly generate labels
         self.if_counter = 0
         self.while_counter = 0
+    
+    # STATEMENTS, DECLARATIONS AND CALLS
     
     def assign_var(self, name, value):
         self.vars.add(name)
@@ -122,8 +147,13 @@ class ASTGenerator(Transformer):
         node.infer(self.symboltable)
         return node
     
-    def class_declaration(self, name, body):
-        node = ASTutils.ClassDeclaration(name, body)
+    def class_declaration(self, name, args, body):
+        node = ASTutils.ClassDeclaration(name,args,"Obj",body)
+        node.infer(self.symboltable)
+        return node
+    
+    def class_declaration_extended(self, name, args, extends, body):
+        node = ASTutils.ClassDeclaration(name,args,extends,body)
         node.infer(self.symboltable)
         return node
 
@@ -131,6 +161,12 @@ class ASTGenerator(Transformer):
         node = ASTutils.MethodDeclaration(name, params, body)
         node.infer(self.symboltable)
         return node
+    
+    def return_stmt(self, value=None):
+        node = ASTutils.ReturnStatement(value)
+        node.infer(self.symboltable)
+        return node
+    
     # EVALUATORS
     
     def gt(self):
@@ -141,6 +177,17 @@ class ASTGenerator(Transformer):
         return "=="
     def nequals(self):
         return "!="
+    
+    # LOG OPS
+    
+    def and_(self, left, right):
+        return ASTutils.LogicalOperation("and", left, right)
+
+    def or_(self, left, right):
+        return ASTutils.LogicalOperation("or", left, right)
+
+    def not_(self, value):
+        return ASTutils.LogicalOperation("not", value)
     
     # BIN OPS
     
@@ -191,6 +238,17 @@ class ASTGenerator(Transformer):
         node.infer(self.symboltable)
         return node
     
+    # FIELDS AND CLASS INITS
+    
+    def assign_field(self, obj, value):
+        node = ASTutils.FieldAssign(obj, value)
+        node.infer(self.symboltable)
+        return node
+    
+    def new(self,name,args):
+        node = ASTutils.NewNode(name,args)
+        return node
+
     # VISITORS
     
     def print_ast(self, node=None, indent=0):
@@ -252,6 +310,12 @@ class ASTGenerator(Transformer):
             for statement in node.children:
                 asm+= self.generate_asm(statement) + "\n"
             return asm
+        if isinstance(node, ASTutils.ClassDeclaration):
+            classasm = f"{node.name}"
+            if node.extended != "Obj":
+                classasm += f":{node.extended}"
+            bodyasm = self.generate_asm(node.body)
+            return f".class {classasm}\n{bodyasm}"
         
         if isinstance(node, ASTutils.Assignment):
             asm = self.generate_asm(node.value)
@@ -273,6 +337,8 @@ class ASTGenerator(Transformer):
                 else_asm = self.generate_asm(node.elsebody)
                 ifasm+=f"{elselabel}:\n"
                 ifasm+= f"{else_asm}"
+            else:
+                ifasm+=f"{elselabel}:\n"
             ifasm += f"{endiflabel}:\n"
             return ifasm
         
@@ -375,8 +441,8 @@ def main():
                 content = file_stream.read().replace("\n","")
                 tree = calc(content)
                 checker = ss.Checker(transformer.symboltable)
-                # print(tree.pretty("     "))
-                # transformer.print_ast(tree)
+                print("tree pretty: ", tree.pretty("     "))
+                transformer.print_ast(tree)
                 transformer.typecheck(checker.check,tree)
                 asm = transformer.generate_asm(tree)
   

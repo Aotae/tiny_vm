@@ -13,3 +13,16 @@ if y {
 a = z;
 b = x;
 
+b.print();
+
+class tester (x:Int) {
+    this.x = x;
+    def test(): Int {
+        return this.x;
+    }
+    this.y = 42;
+}
+
+c = tester(z);
+c.test();
+c.print();

@@ -1,6 +1,6 @@
 .class Main:Obj
 .method $constructor
-.local x,b,z,y,a
+.local a,y,x,c,b,z
 const 2
 store x
 const 10
@@ -8,6 +8,7 @@ store z
 const true
 store y
 load y
+
 jump_ifnot else_0
 jump then_0
 then_0:
@@ -23,6 +24,7 @@ pop
 load z
 load x
 call Int:less
+
 jump_ifnot else_1
 jump then_1
 then_1:
@@ -41,6 +43,25 @@ load z
 store a
 load x
 store b
+load b
+call Int:print
+pop
+.class tester
+
+
+
+
+
+
+
+
+
+store c
+load c
+call tester:test
+load c
+call tester:print
+pop
 
 return 0
 
