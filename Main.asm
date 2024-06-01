@@ -1,6 +1,6 @@
 .class Main:Obj
 .method $constructor
-.local a,y,x,c,b,z
+.local z,x,a,c,y,b
 const 2
 store x
 const 10
@@ -47,8 +47,17 @@ load b
 call Int:print
 pop
 .class tester
+.field y
+.field x
 
-
+.method $constructor
+.args x
+load x
+load $
+store_field $:x
+const 42
+load $
+store_field $:42
 
 
 
@@ -57,10 +66,11 @@ pop
 
 
 store c
+const 12
 load c
-call tester:test
+store_field $:12
 load c
-call tester:print
+call Int:print
 pop
 
 return 0

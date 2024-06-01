@@ -1,8 +1,9 @@
 import os
 import lark.tree as t
+PRIMITIVES = ["String","Obj","Int","Bool","Nothing"]
 class ASTNode:
     def __init__(self):
-        self.children = []
+        pass
     def infer(self, symboltable):
         pass
 
@@ -132,10 +133,12 @@ class BinaryOperation(ASTNode):
 class ClassDeclaration(ASTNode):
     def __init__(self, name, args, extends, body):
         self.name = name
-        self.args = args
+        self.args = generate_formal_args(args)
+        print(self.args)
         self.extended = extends
         self.body = body
         self.inferred_type = name
+        self.fields = set()
         
     def infer(self, symboltable):
         symboltable[self.name] = self.inferred_type
@@ -143,6 +146,8 @@ class ClassDeclaration(ASTNode):
             for statement in self.body.children:
                 if isinstance(statement, ASTNode):
                     statement.infer(symboltable)
+                    if isinstance(statement,FieldAssign):
+                        self.fields.add(statement.infer(symboltable))
         elif isinstance(self.body, ASTNode):
             self.body.infer(symboltable)
         return self.inferred_type
@@ -226,6 +231,21 @@ class FieldAssign(ASTNode):
     def __init__(self, obj, value):
         self.obj = obj
         self.value = value
+        self.inferred_type = None
+        
+    def infer(self,symboltable):
+        return self.obj.name
+
+class FieldAccess(ASTNode):
+    # for now the same as a variable, once field assign is done the acces will be different
+    def __init__(self,obj, name):
+        self.obj = obj
+        self.name = name
+        self.inferred_type = None
+    def infer(self,symboltable):
+        # get the type from the symbol table, if dne return Obj
+        self.inferred_type = symboltable.get(self.name,'Obj')
+        return self.inferred_type
         
 class LogicalOperation(ASTNode):
     def __init__(self, operator, left, right=None):
@@ -241,6 +261,17 @@ class NewNode(ASTNode):
     def infer(self,symboltable):
         return self.type
     
+def generate_formal_args(args):
+    if args is None:
+        return []
+    
+    formal_args = []
+    for arg in args.children:
+        if arg.data == 'formal_arg':
+            formal_args.append(arg.children[0])
+    
+    return formal_args
+
 def find_file(start_dir, target_file):
     # Iterate over all files and directories in the start directory
     for root, dirs, files in os.walk(start_dir):

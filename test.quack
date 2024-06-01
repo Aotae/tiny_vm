@@ -17,12 +17,12 @@ b.print();
 
 class tester (x:Int) {
     this.x = x;
+    this.y = 42;
     def test(): Int {
         return this.x;
     }
-    this.y = 42;
 }
 
 c = tester(z);
-c.test();
-c.print();
+c.x = 12;
+c.x.print();

@@ -52,8 +52,10 @@ calc_grammar = """
 
     ?method_call: calls ";"
 
-    ?class_decl: "class" NAME "(" formal_args? ")" "{" class_body "}" -> class_declaration
-        | "class" NAME "(" formal_args? ")" "extends" NAME "{" class_body "}" -> class_declaration_extended
+    ?class_decl: "class" NAME "(" formal_args ")" "{" class_body "}" -> class_declaration_p
+        | "class" NAME "(" ")" "{" class_body "}" -> class_declaration
+        | "class" NAME "(" formal_args ")" "extends" NAME "{" class_body "}" -> class_declaration_extended_p
+        | "class" NAME "(" ")" "extends" NAME "{" class_body "}" -> class_declaration_extended
 
     ?method_decl: "def" NAME "(" argument_list ")" ":" NAME "{" codeblock* "}" -> mthd_p_decl_return
         | "def" NAME "(" argument_list ")" "{" codeblock* "}" -> mthd_p_decl
@@ -83,7 +85,7 @@ calc_grammar = """
         | method_invocation
 
     ?field: atom
-        | field "." NAME -> field_access
+        | field "." NAME -> access_field
 
     ?method_invocation: field "." NAME "(" argument_list? ")" -> call_method
 
@@ -109,6 +111,7 @@ class ASTGenerator(Transformer):
     # Extending the Lark Transformer class to generate an AST instead of directly translating
     def __init__(self):
         self.vars = set()
+        self.classtable = {}
         self.symboltable = {}
         # this is really hacky and bad, I don't like this but I think this might be the simplest way to properly generate labels
         self.if_counter = 0
@@ -147,14 +150,28 @@ class ASTGenerator(Transformer):
         node.infer(self.symboltable)
         return node
     
-    def class_declaration(self, name, args, body):
-        node = ASTutils.ClassDeclaration(name,args,"Obj",body)
-        node.infer(self.symboltable)
+    def class_declaration(self, name, body):
+        node = ASTutils.ClassDeclaration(name,None,"Obj",body)
+        ctype = node.infer(self.symboltable)
+        self.classtable[ctype] = node.fields
         return node
     
-    def class_declaration_extended(self, name, args, extends, body):
+    def class_declaration_extended(self, name, extends, body):
+        node = ASTutils.ClassDeclaration(name,None,extends,body)
+        ctype = node.infer(self.symboltable)
+        self.classtable[ctype] = node.fields
+        return node
+    
+    def class_declaration_p(self, name, args, body):
+        node = ASTutils.ClassDeclaration(name,args,"Obj",body)
+        ctype = node.infer(self.symboltable)
+        self.classtable[ctype] = node.fields
+        return node
+    
+    def class_declaration_extended_p(self, name, args, extends, body):
         node = ASTutils.ClassDeclaration(name,args,extends,body)
-        node.infer(self.symboltable)
+        ctype = node.infer(self.symboltable)
+        self.classtable[ctype] = node.fields
         return node
 
     def method_declaration(self, name, params, body):
@@ -245,6 +262,11 @@ class ASTGenerator(Transformer):
         node.infer(self.symboltable)
         return node
     
+    def access_field(self, obj, name):
+        node = ASTutils.FieldAccess(obj, name)
+        node.infer(self.symboltable)
+        return node
+    
     def new(self,name,args):
         node = ASTutils.NewNode(name,args)
         return node
@@ -305,17 +327,37 @@ class ASTGenerator(Transformer):
     def generate_asm(self, node=None):
         if node is None:
             return ''
+        
         if isinstance(node,t.Tree):
             asm = ""
             for statement in node.children:
                 asm+= self.generate_asm(statement) + "\n"
             return asm
+        
         if isinstance(node, ASTutils.ClassDeclaration):
             classasm = f"{node.name}"
             if node.extended != "Obj":
                 classasm += f":{node.extended}"
+            fields = "\n".join([f".field {field}" for field in node.fields])
+            constructor = f"\n.method $constructor"
+            constructor_args = ".args " + ",".join([f"{arg}" for arg in node.args]) if node.args else ""
             bodyasm = self.generate_asm(node.body)
-            return f".class {classasm}\n{bodyasm}"
+            return f".class {classasm}\n{fields}\n{constructor}\n{constructor_args}\n{bodyasm}"
+        
+        if isinstance(node, ASTutils.FieldAccess):
+            obj_asm = self.generate_asm(node.obj)
+            return f"{obj_asm}"
+        
+        if isinstance(node, ASTutils.FieldAssign):
+            obj_asm = self.generate_asm(node.obj)
+            value_asm = self.generate_asm(node.value)
+            if isinstance(node.value,ASTutils.Constant):
+                nk = node.value.value
+            else:
+                nk = node.value.name
+                
+            fasm = f"{value_asm}\n{obj_asm}\nstore_field $:{nk}"
+            return fasm
         
         if isinstance(node, ASTutils.Assignment):
             asm = self.generate_asm(node.value)
@@ -366,6 +408,7 @@ class ASTGenerator(Transformer):
                 return f"{right_asm}\n{left_asm}\ncall {self.symboltable[node.identifier]}:less"
             elif node.operator == '==':
                 return f"{right_asm}\n{left_asm}\ncall {self.symboltable[node.identifier]}:equals"            
+        
         elif isinstance(node,ASTutils.SoloCond):
             s_cond_asm = self.generate_asm(node.value)
             return f"{s_cond_asm}"
@@ -406,7 +449,10 @@ class ASTGenerator(Transformer):
             return f"const {node.value}"
         
         elif isinstance(node, ASTutils.Variable):
+            if node.name == "this":
+                return f"load $"
             return f"load {node.name}"
+        
         return ""
             
 

@@ -15,6 +15,9 @@ class Checker:
             '>':["String","Int"],
             '==':["String","Int"],
             '!=':["String","Int"],
+            "Int":['*','-','/','+','<','>','==','!=',"str","print"],
+            "Obj":["print","str"],
+            "String":['+','<','>','==','!=',"str","print"]
         }
         
     def check(self, node):
