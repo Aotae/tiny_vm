@@ -1,28 +1,9 @@
-x = 2;
-z = 10;
-y = true;
-if y {
-    "hello x is less than z\n".print();
-}else{
-    "hello x is not less than z\n".print();
-    if z > x {
-        "x is greater than z\n".print();
-    }
-}
-
-a = z;
-b = x;
-
-b.print();
-
-class tester (x:Int) {
+class tester(x:Int){
     this.x = x;
-    this.y = 42;
-    def test(): Int {
+    def test(){
         return this.x;
     }
 }
 
-c = tester(z);
-c.x = 12;
-c.x.print();
+a = tester(42);
+a.x.print();

@@ -1,0 +1,49 @@
+y = false;
+x = true;
+z = false;
+a = 4;
+b = 2;
+
+if not y and x {
+    "(not y) is true and x is true -> x=true, y = false\n".print();
+}else{
+    "hooray x is true therefore not x works\n".print();
+}
+
+if x and y {
+    "while x is true y is not this shouldn't print\n".print();
+}else{
+    "expected\n".print();
+}
+
+if b-2 == 0 {
+    "b is equal to 2\n".print();
+}
+
+if b < a {
+    "b is less than 4\n".print();
+}
+
+if b > a {
+    "b is greater than a\n".print();
+}else{
+    "b is not greater than a\n".print();
+}
+
+if not b < a and x {
+    "b is not less than a, and x is true\n".print();
+}else{
+    "b<a is true therefore (not b < a) is true and x is true\n".print();
+}
+
+if x or y {
+    "either x or y is true\n".print();
+}
+
+if z or y {
+    "either z or y is true\n".print();
+}
+
+if x or not y {
+    "either x or not y is true\n".print();
+}

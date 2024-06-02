@@ -134,42 +134,46 @@ class ClassDeclaration(ASTNode):
     def __init__(self, name, args, extends, body):
         self.name = name
         self.args = generate_formal_args(args)
-        print(self.args)
         self.extended = extends
         self.body = body
         self.inferred_type = name
+        self.methods = set()
         self.fields = set()
         
     def infer(self, symboltable):
         symboltable[self.name] = self.inferred_type
         if isinstance(self.body, t.Tree):
             for statement in self.body.children:
+                if isinstance(statement,FieldAssign):
+                    self.fields.add(statement.infer(symboltable))
+                if isinstance(statement,MethodDeclaration):
+                    self.methods.add(statement.infer(symboltable))
                 if isinstance(statement, ASTNode):
                     statement.infer(symboltable)
-                    if isinstance(statement,FieldAssign):
-                        self.fields.add(statement.infer(symboltable))
+
+                        
         elif isinstance(self.body, ASTNode):
             self.body.infer(symboltable)
+        # print(self.methods)
         return self.inferred_type
 
 class MethodDeclaration(ASTNode):
-    def __init__(self, classname, methodname, params, body):
-        self.classname = classname
+    def __init__(self, methodname, params, returntype, body):
         self.methodname = methodname
         self.params = params
         self.body = body
+        self.return_type = returntype
         self.inferred_type = "Method"
         
     def infer(self, symboltable):
-        identifier = f"{self.classname}:{self.methodname}"
-        symboltable[identifier] = self.inferred_type
         if isinstance(self.body, t.Tree):
             for statement in self.body.children:
                 if isinstance(statement, ASTNode):
                     statement.infer(symboltable)
         elif isinstance(self.body, ASTNode):
             self.body.infer(symboltable)
-        return self.inferred_type
+        # print(self.methodname)
+        return self.methodname
 
 class Variable(ASTNode):
     def __init__(self, name):
@@ -225,33 +229,54 @@ class Methods(ASTNode):
 
 class ReturnStatement(ASTNode):
     def __init__(self, value):
+        print(value)
         self.value = value
+        
+    def infer(self,symboltable):
+        return self.value.infer(symboltable)
         
 class FieldAssign(ASTNode):
     def __init__(self, obj, value):
         self.obj = obj
+        self.name = obj.name
         self.value = value
         self.inferred_type = None
         
-    def infer(self,symboltable):
-        return self.obj.name
+    def infer(self, symboltable):
+        obj_type = self.obj.infer(symboltable)
+        value_type = self.value.infer(symboltable)
+        symboltable[f"{obj_type}.{self.name}"] = value_type
+        self.inferred_type = value_type
+        return self.name
 
 class FieldAccess(ASTNode):
-    # for now the same as a variable, once field assign is done the acces will be different
-    def __init__(self,obj, name):
+    def __init__(self, obj, name):
         self.obj = obj
         self.name = name
         self.inferred_type = None
-    def infer(self,symboltable):
-        # get the type from the symbol table, if dne return Obj
-        self.inferred_type = symboltable.get(self.name,'Obj')
-        return self.inferred_type
+        
+    def infer(self, symboltable):
+        obj_type = self.obj.infer(symboltable)
+        self.inferred_type = symboltable.get(f"{obj_type}.{self.name}", 'Obj')
+        return self.name
         
 class LogicalOperation(ASTNode):
     def __init__(self, operator, left, right=None):
         self.operator = operator
         self.left = left
         self.right = right
+        
+    def infer(self,symboltable):
+        ltype = self.left.infer(symboltable)
+        rtype = None
+        if self.right != None:
+            rtype = self.right.infer(symboltable)
+        if ltype != rtype:
+            # same thing as binary ops, do lca
+            self.inferred_type = "Obj"
+        else:
+            self.inferred_type = "Bool"
+        return self.inferred_type
         
 class NewNode(ASTNode):
     def __init__(self, name, args):

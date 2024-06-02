@@ -70,8 +70,6 @@ calc_grammar = """
     class_body: (method_decl | statement)*
 
     ?value: sum
-        | TRUE -> tf
-        | FALSE -> tf
 
     ?sum: product
         | sum "+" product   -> add
@@ -94,7 +92,8 @@ calc_grammar = """
         | NAME "(" argument_list? ")" -> new
         | NAME -> var
         | "(" sum ")"
-
+        | TRUE -> tf
+        | FALSE -> tf
     TRUE: "true"
     FALSE: "false"
     STRING: /"[^"]*"/
@@ -102,7 +101,6 @@ calc_grammar = """
     %import common.CNAME -> NAME
     %import common.NUMBER
     %import common.WS_INLINE
-
     %ignore WS_INLINE
 """
 # Parse -> AST -> ASM
@@ -116,6 +114,9 @@ class ASTGenerator(Transformer):
         # this is really hacky and bad, I don't like this but I think this might be the simplest way to properly generate labels
         self.if_counter = 0
         self.while_counter = 0
+        self.and_counter = 0
+        self.or_counter = 0
+        self.not_counter = 0
     
     # STATEMENTS, DECLARATIONS AND CALLS
     
@@ -150,6 +151,9 @@ class ASTGenerator(Transformer):
         node.infer(self.symboltable)
         return node
     
+    
+    # this could be a lot better but trying to work fast for now
+    # it will absolutely bite me in the ass
     def class_declaration(self, name, body):
         node = ASTutils.ClassDeclaration(name,None,"Obj",body)
         ctype = node.infer(self.symboltable)
@@ -174,9 +178,20 @@ class ASTGenerator(Transformer):
         self.classtable[ctype] = node.fields
         return node
 
-    def method_declaration(self, name, params, body):
-        node = ASTutils.MethodDeclaration(name, params, body)
-        node.infer(self.symboltable)
+    def mthd_p_decl_return(self, name, params, return_type, body):
+        node = ASTutils.MethodDeclaration(name, params, return_type, body)
+        return node
+    
+    def mthd_p_decl(self, name, params, body):
+        node = ASTutils.MethodDeclaration(name, params, "Nothing", body)
+        return node
+    
+    def mthd_decl_return(self, name, return_type, body):
+        node = ASTutils.MethodDeclaration(name, [], return_type, body)
+        return node
+    
+    def mthd_decl(self, name, body):
+        node = ASTutils.MethodDeclaration(name, [], "Nothing", body)
         return node
     
     def return_stmt(self, value=None):
@@ -198,13 +213,19 @@ class ASTGenerator(Transformer):
     # LOG OPS
     
     def and_(self, left, right):
-        return ASTutils.LogicalOperation("and", left, right)
+        node = ASTutils.LogicalOperation("and", left, right)
+        node.infer(self.symboltable)
+        return node
 
     def or_(self, left, right):
-        return ASTutils.LogicalOperation("or", left, right)
+        node = ASTutils.LogicalOperation("or", left, right)
+        node.infer(self.symboltable)
+        return node
 
     def not_(self, value):
-        return ASTutils.LogicalOperation("not", value)
+        node = ASTutils.LogicalOperation("not", value)
+        node.infer(self.symboltable)
+        return node
     
     # BIN OPS
     
@@ -316,6 +337,11 @@ class ASTGenerator(Transformer):
         elif isinstance(node, ASTutils.SoloCond):
             print(' ' * indent, 'Solo Conditional:')
             self.print_ast(node.value, indent + 4)
+        elif isinstance(node,ASTutils.LogicalOperation):
+            print(' ' * indent, 'LOGOPS:')
+            self.print_ast(node.left, indent + 4)
+            print(' ' * (indent + 4), 'Operator:', node.operator)
+            self.print_ast(node.right, indent + 4)
 
     def typecheck(self, checker, node=None ):
         if node is None:
@@ -324,42 +350,52 @@ class ASTGenerator(Transformer):
             for statement in node.children:
                 checker(statement)
             
-    def generate_asm(self, node=None):
+    def generate_asm(self, node=None, for_store=False):
         if node is None:
             return ''
         
-        if isinstance(node,t.Tree):
+        elif isinstance(node,t.Tree):
             asm = ""
             for statement in node.children:
                 asm+= self.generate_asm(statement) + "\n"
             return asm
         
-        if isinstance(node, ASTutils.ClassDeclaration):
+        elif isinstance(node, ASTutils.ClassDeclaration):
             classasm = f"{node.name}"
+            print(node.body.pretty("    "))
             if node.extended != "Obj":
                 classasm += f":{node.extended}"
             fields = "\n".join([f".field {field}" for field in node.fields])
+            methods = "\n".join([f".method {method} forward" for method in node.methods])
             constructor = f"\n.method $constructor"
             constructor_args = ".args " + ",".join([f"{arg}" for arg in node.args]) if node.args else ""
             bodyasm = self.generate_asm(node.body)
-            return f".class {classasm}\n{fields}\n{constructor}\n{constructor_args}\n{bodyasm}"
+            return f".class {classasm}\n{fields}\n{methods}\n{constructor}\n{constructor_args}\n{bodyasm}\n end of class"
         
-        if isinstance(node, ASTutils.FieldAccess):
-            obj_asm = self.generate_asm(node.obj)
-            return f"{obj_asm}"
+        elif isinstance(node, ASTutils.MethodDeclaration):
+            method_header = f".method {node.methodname}"
+            print(node.body)
+            method_body = self.generate_asm(node.body)
+            return f"{method_header}\nenter\n{method_body}"
         
-        if isinstance(node, ASTutils.FieldAssign):
+        elif isinstance(node, ASTutils.FieldAccess):
             obj_asm = self.generate_asm(node.obj)
+            if for_store:
+                return f"{obj_asm}"
+            objname = node.obj.name
+            if objname == "this":
+                objname = "$"
+            return f"{obj_asm}\nload_field {objname}:{node.name}"
+        
+        elif isinstance(node, ASTutils.FieldAssign):
             value_asm = self.generate_asm(node.value)
-            if isinstance(node.value,ASTutils.Constant):
-                nk = node.value.value
-            else:
-                nk = node.value.name
-                
-            fasm = f"{value_asm}\n{obj_asm}\nstore_field $:{nk}"
-            return fasm
+            obj_asm = self.generate_asm(node.obj, for_store=True)
+            objname = node.obj.obj.name
+            if objname == "this":
+                objname = "$"
+            return f"{value_asm}\n{obj_asm}\nstore_field {objname}:{node.name}"
         
-        if isinstance(node, ASTutils.Assignment):
+        elif isinstance(node, ASTutils.Assignment):
             asm = self.generate_asm(node.value)
             return f"{asm}\nstore {node.name}"
         
@@ -384,6 +420,30 @@ class ASTGenerator(Transformer):
             ifasm += f"{endiflabel}:\n"
             return ifasm
         
+        elif isinstance(node, ASTutils.LogicalOperation):
+            if node.operator == "and":
+                label_and = f"and_false_{self.and_counter}"
+                label_end = f"and_end_{self.and_counter}"
+                self.and_counter += 1
+                left_asm = self.generate_asm(node.left)
+                right_asm = self.generate_asm(node.right)
+                return f"{left_asm}\njump_ifnot {label_and}\n{right_asm}\njump_ifnot {label_and}\nconst true\njump {label_end}\n{label_and}:\nconst false\n{label_end}:"
+            
+            elif node.operator == "or":
+                label_or = f"or_true_{self.or_counter}"
+                label_end = f"or_end_{self.or_counter}"
+                self.or_counter += 1
+                left_asm = self.generate_asm(node.left)
+                right_asm = self.generate_asm(node.right)
+                return f"{left_asm}\njump_if {label_or}\n{right_asm}\njump_if {label_or}\nconst false\njump {label_end}\n{label_or}:\nconst true\n{label_end}:\n"
+            
+            elif node.operator == "not":
+                value_asm = self.generate_asm(node.left)
+                label_true = f"val_true_{self.not_counter}"
+                label_end = f"end_not_{self.not_counter}"
+                self.not_counter += 1
+                return f"{value_asm}\njump_if {label_true}\nconst true\njump {label_end}\n{label_true}:\nconst false\n{label_end}:\n"
+        
         elif isinstance(node, ASTutils.WhileStatement):
             while_asm = ""
             condition_asm = self.generate_asm(node.condition)
@@ -398,6 +458,11 @@ class ASTGenerator(Transformer):
             while_asm += f"jump {whilelabel}\n"
             while_asm += f"{endlabel}:\n"
             return while_asm
+        
+        elif isinstance(node, ASTutils.ReturnStatement):
+            value_asm = self.generate_asm(node.value) if node.value else ""
+            print(value_asm)
+            return f"{value_asm}"    
             
         elif isinstance(node,ASTutils.Conditional):
             left_asm = self.generate_asm(node.left)
@@ -417,22 +482,23 @@ class ASTGenerator(Transformer):
             asm = self.generate_asm(node.obj)
             if isinstance(node.obj, ASTutils.Constant):
                 nodekey = node.obj.value
-            else:
+            elif isinstance(node.obj, ASTutils.Variable):
                 nodekey = node.obj.name
-            if(node.args != None):
-                # uhh, do something with the args,
-                # probably something like load them I think...
-                # I don't think we need this for mini quack right now though
-                # since we're only doing <= >= == < > which aren't called like methods
-                # like print, which I think is the only "legitimate" method
-                pass
+            elif isinstance(node.obj, ASTutils.FieldAccess):
+                nodekey = f"{node.obj.obj.name}:{node.obj.name}"
+                asm = self.generate_asm(node.obj)
+
+            args_asm = ""
+            if node.args:
+                for arg in node.args:
+                    args_asm += self.generate_asm(arg) + "\n"
             
-            call = f"{asm}\ncall {self.symboltable[nodekey]}:{node.method}"
+            call = f"{args_asm}{asm}\ncall {self.symboltable[nodekey]}:{node.method}"
             
-            if (node.method == "print"):
+            if node.method == "print":
                 call += "\npop"
             return call
-        
+            
         elif isinstance(node, ASTutils.BinaryOperation):
             left_asm = self.generate_asm(node.left)
             right_asm = self.generate_asm(node.right)
@@ -486,6 +552,7 @@ def main():
                 # Process the file stream (e.g., read lines, parse data)
                 content = file_stream.read().replace("\n","")
                 tree = calc(content)
+                print(transformer.symboltable)
                 checker = ss.Checker(transformer.symboltable)
                 print("tree pretty: ", tree.pretty("     "))
                 transformer.print_ast(tree)
@@ -499,10 +566,11 @@ def main():
         
         main = open('Main.asm', 'w+', encoding="utf-8")
         print(f".class Main:Obj\n.method $constructor",file=main)
-        print('.local',','.join(transformer.vars),file=main)
+        if transformer.vars:
+            print('.local',','.join(transformer.vars),file=main)
         print(asm,file=main)
         print(f"return 0\n",file=main)
-        # print(transformer.symboltable)
+        print(transformer.symboltable)
     else:
         while True:
             try:
