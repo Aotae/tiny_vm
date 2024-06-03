@@ -157,25 +157,25 @@ class ASTGenerator(Transformer):
     def class_declaration(self, name, body):
         node = ASTutils.ClassDeclaration(name,None,"Obj",body)
         ctype = node.infer(self.symboltable)
-        self.classtable[ctype] = node.fields
+        self.classtable[ctype] = node.fields,node.args
         return node
     
     def class_declaration_extended(self, name, extends, body):
         node = ASTutils.ClassDeclaration(name,None,extends,body)
         ctype = node.infer(self.symboltable)
-        self.classtable[ctype] = node.fields
+        self.classtable[ctype] = node.fields,node.args
         return node
     
     def class_declaration_p(self, name, args, body):
         node = ASTutils.ClassDeclaration(name,args,"Obj",body)
         ctype = node.infer(self.symboltable)
-        self.classtable[ctype] = node.fields
+        self.classtable[ctype] = node.fields,node.args
         return node
     
     def class_declaration_extended_p(self, name, args, extends, body):
         node = ASTutils.ClassDeclaration(name,args,extends,body)
         ctype = node.infer(self.symboltable)
-        self.classtable[ctype] = node.fields
+        self.classtable[ctype] = node.fields,node.args
         return node
 
     def mthd_p_decl_return(self, name, params, return_type, body):
@@ -255,7 +255,7 @@ class ASTGenerator(Transformer):
         return node
 
     # TERMINALS
-    
+        
     def number(self, value):
         node = ASTutils.Constant(value)
         node.infer(self.symboltable)
@@ -361,20 +361,20 @@ class ASTGenerator(Transformer):
             return asm
         
         elif isinstance(node, ASTutils.ClassDeclaration):
+            classname = node.name
             classasm = f"{node.name}"
-            print(node.body.pretty("    "))
-            if node.extended != "Obj":
-                classasm += f":{node.extended}"
+            classasm += f":{node.extended}"
             fields = "\n".join([f".field {field}" for field in node.fields])
             methods = "\n".join([f".method {method} forward" for method in node.methods])
             constructor = f"\n.method $constructor"
-            constructor_args = ".args " + ",".join([f"{arg}" for arg in node.args]) if node.args else ""
+            constructor_args = ".args " + ",".join([f"{arg[0]}" for arg in node.args]) if node.args else ""
             bodyasm = self.generate_asm(node.body)
-            return f".class {classasm}\n{fields}\n{methods}\n{constructor}\n{constructor_args}\n{bodyasm}\n end of class"
+            self.write_class_asm(classname,f".class {classasm}\n{fields}\n{methods}\n{constructor}\n{constructor_args}\n{bodyasm}\n")
+            return ""
         
         elif isinstance(node, ASTutils.MethodDeclaration):
             method_header = f".method {node.methodname}"
-            print(node.body)
+            # print(node.body)
             method_body = self.generate_asm(node.body)
             return f"{method_header}\nenter\n{method_body}"
         
@@ -382,10 +382,11 @@ class ASTGenerator(Transformer):
             obj_asm = self.generate_asm(node.obj)
             if for_store:
                 return f"{obj_asm}"
+            objtype = node.obj.inferred_type
             objname = node.obj.name
             if objname == "this":
-                objname = "$"
-            return f"{obj_asm}\nload_field {objname}:{node.name}"
+                objtype = "$"
+            return f"{obj_asm}\nload_field {objtype}:{node.name}"
         
         elif isinstance(node, ASTutils.FieldAssign):
             value_asm = self.generate_asm(node.value)
@@ -461,8 +462,8 @@ class ASTGenerator(Transformer):
         
         elif isinstance(node, ASTutils.ReturnStatement):
             value_asm = self.generate_asm(node.value) if node.value else ""
-            print(value_asm)
-            return f"{value_asm}"    
+            # print(value_asm)
+            return f"{value_asm}\nreturn 0"    
             
         elif isinstance(node,ASTutils.Conditional):
             left_asm = self.generate_asm(node.left)
@@ -479,26 +480,36 @@ class ASTGenerator(Transformer):
             return f"{s_cond_asm}"
                    
         elif isinstance(node, ASTutils.Methods):
+            table = self.symboltable
             asm = self.generate_asm(node.obj)
             if isinstance(node.obj, ASTutils.Constant):
                 nodekey = node.obj.value
             elif isinstance(node.obj, ASTutils.Variable):
                 nodekey = node.obj.name
             elif isinstance(node.obj, ASTutils.FieldAccess):
-                nodekey = f"{node.obj.obj.name}:{node.obj.name}"
+                nodekey = f"{node.obj.obj.name}.{node.obj.name}"
                 asm = self.generate_asm(node.obj)
-
             args_asm = ""
             if node.args:
                 for arg in node.args:
                     args_asm += self.generate_asm(arg) + "\n"
             
-            call = f"{args_asm}{asm}\ncall {self.symboltable[nodekey]}:{node.method}"
+            call = f"{args_asm}{asm}\ncall {table[nodekey]}:{node.method}"
             
             if node.method == "print":
                 call += "\npop"
             return call
+    
+        elif isinstance(node, ASTutils.NewNode):
+            args_asm = ""
+            if node.args:
+                for arg in node.args:
+                    args_asm += self.generate_asm(arg) + "\n"
             
+            new_obj = f"new {node.type}\n"
+            newcall = f"{args_asm}{new_obj}call {node.type}:$constructor"
+            return newcall
+    
         elif isinstance(node, ASTutils.BinaryOperation):
             left_asm = self.generate_asm(node.left)
             right_asm = self.generate_asm(node.right)
@@ -521,7 +532,11 @@ class ASTGenerator(Transformer):
         
         return ""
             
-
+    def write_class_asm(self, class_name, asm_code):
+        file_name = f"{class_name}.asm"
+        with open(file_name, 'w', encoding='utf-8') as file:
+            file.write(asm_code)
+        
 def main():
     debug = open('debug', 'w', encoding="utf-8")
     file = False
@@ -533,51 +548,49 @@ def main():
     calcp = calc_parser_ptree.parse
     for index, arg in enumerate(sys.argv[1:]):
         if arg == "-f":
-            if index + 1 <len(sys.argv[1:]):
+            if index + 1 < len(sys.argv[1:]):
                 filename = sys.argv[index+2]
                 file = True
             else:
                 print(f"Error: requires filename after -f")
                 return
     if file:
-        path = ASTutils.find_file(os.getcwd(),filename)
+        path = ASTutils.find_file(os.getcwd(), filename)
         if path:
             print(f"Found {filename} at:{path}")
         else:
             print(f"File {filename} not found in:{os.getcwd()}")
             return
         try:
-            # Open the file in read mode as a stream
             with open(path, 'r') as file_stream:
-                # Process the file stream (e.g., read lines, parse data)
-                content = file_stream.read().replace("\n","")
+                content = file_stream.read().replace("\n", "")
                 tree = calc(content)
-                print(transformer.symboltable)
                 checker = ss.Checker(transformer.symboltable)
                 print("tree pretty: ", tree.pretty("     "))
                 transformer.print_ast(tree)
-                transformer.typecheck(checker.check,tree)
+                transformer.typecheck(checker.check, tree)
                 asm = transformer.generate_asm(tree)
-  
+
         except FileNotFoundError:
             print("File not found:", path)
         except IOError:
             print("Error opening file:", path)
         
-        main = open('Main.asm', 'w+', encoding="utf-8")
-        print(f".class Main:Obj\n.method $constructor",file=main)
-        if transformer.vars:
-            print('.local',','.join(transformer.vars),file=main)
-        print(asm,file=main)
-        print(f"return 0\n",file=main)
+        main_file_name = 'Main.asm'
+        with open(main_file_name, 'w+', encoding="utf-8") as main:
+            print(f".class Main:Obj\n.method $constructor", file=main)
+            if transformer.vars:
+                print('.local', ','.join(transformer.vars), file=main)
+            print(asm, file=main)
+            print(f"return 0\n", file=main)
         print(transformer.symboltable)
+        print(transformer.classtable)
     else:
         while True:
             try:
                 s = input('> ')
             except EOFError:
                 break
-            # Generate the asm code
             AST = calc(s.strip())
             ptree = calcp(s.strip())
             print("Parse Tree:")

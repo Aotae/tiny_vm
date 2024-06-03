@@ -1,4 +1,4 @@
-class tester(x:Int){
+class tester(x:Int,y:Int){
     this.x = x;
     def test(){
         return this.x;
@@ -6,4 +6,9 @@ class tester(x:Int){
 }
 
 a = tester(42);
-a.x.print();
+a.print();
+"\n".print();
+t = a.x;
+t.print();
+"\n".print();
+"\n".print();

@@ -134,29 +134,33 @@ class ClassDeclaration(ASTNode):
     def __init__(self, name, args, extends, body):
         self.name = name
         self.args = generate_formal_args(args)
+        # print("arg list:", self.args)
         self.extended = extends
         self.body = body
         self.inferred_type = name
         self.methods = set()
-        self.fields = set()
+        self.fields = {}
         
     def infer(self, symboltable):
         symboltable[self.name] = self.inferred_type
+        for arg_name, arg_type in self.args:
+            symboltable[f"{self.name}.{arg_name}"] = arg_type
+        
         if isinstance(self.body, t.Tree):
             for statement in self.body.children:
-                if isinstance(statement,FieldAssign):
-                    self.fields.add(statement.infer(symboltable))
-                if isinstance(statement,MethodDeclaration):
+                if isinstance(statement, FieldAssign):
+                    field_name = statement.obj.name
+                    field_type = statement.value.infer(symboltable)
+                    self.fields[field_name] = field_type
+                elif isinstance(statement, MethodDeclaration):
                     self.methods.add(statement.infer(symboltable))
-                if isinstance(statement, ASTNode):
+                elif isinstance(statement, ASTNode):
                     statement.infer(symboltable)
-
-                        
         elif isinstance(self.body, ASTNode):
             self.body.infer(symboltable)
-        # print(self.methods)
-        return self.inferred_type
 
+        return self.inferred_type
+    
 class MethodDeclaration(ASTNode):
     def __init__(self, methodname, params, returntype, body):
         self.methodname = methodname
@@ -229,7 +233,7 @@ class Methods(ASTNode):
 
 class ReturnStatement(ASTNode):
     def __init__(self, value):
-        print(value)
+        # print(value)
         self.value = value
         
     def infer(self,symboltable):
@@ -238,27 +242,36 @@ class ReturnStatement(ASTNode):
 class FieldAssign(ASTNode):
     def __init__(self, obj, value):
         self.obj = obj
+        print(obj.name)
         self.name = obj.name
+        print(value)
         self.value = value
         self.inferred_type = None
         
     def infer(self, symboltable):
         obj_type = self.obj.infer(symboltable)
+        print(obj_type)
         value_type = self.value.infer(symboltable)
-        symboltable[f"{obj_type}.{self.name}"] = value_type
+        print(value_type)
+        field_key = f"{obj_type}.{self.name}"
+        symboltable[field_key] = value_type
         self.inferred_type = value_type
-        return self.name
-
+        return self.inferred_type
+    
 class FieldAccess(ASTNode):
     def __init__(self, obj, name):
         self.obj = obj
+        # print(obj.name)
         self.name = name
+        # print(name)
         self.inferred_type = None
         
     def infer(self, symboltable):
         obj_type = self.obj.infer(symboltable)
+        # print("access type: ", obj_type)
         self.inferred_type = symboltable.get(f"{obj_type}.{self.name}", 'Obj')
-        return self.name
+        # print("access type: ", self.inferred_type)
+        return self.inferred_type
         
 class LogicalOperation(ASTNode):
     def __init__(self, operator, left, right=None):
@@ -283,7 +296,15 @@ class NewNode(ASTNode):
         self.type = name
         self.args = args
         
-    def infer(self,symboltable):
+    def infer(self, symboltable):
+        # Ensure the class type is in the symbol table
+        if self.type not in symboltable:
+            symboltable[self.type] = self.type
+        
+        # Infer the types of the constructor arguments
+        for arg in self.args:
+            arg.infer(symboltable)
+        
         return self.type
     
 def generate_formal_args(args):
@@ -293,7 +314,7 @@ def generate_formal_args(args):
     formal_args = []
     for arg in args.children:
         if arg.data == 'formal_arg':
-            formal_args.append(arg.children[0])
+            formal_args.append(arg.children)
     
     return formal_args
 

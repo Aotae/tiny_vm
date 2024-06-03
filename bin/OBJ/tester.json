@@ -13,35 +13,23 @@
         "test"
     ],
     "fields": [
-        "x",
-        "y"
+        "x"
     ],
-    "n_fields": 2,
+    "n_fields": 1,
     "n_methods": 5,
     "n_inherited": 4,
-    "constants": [
-        {
-            "kind": "i",
-            "value": "42"
-        }
-    ],
+    "constants": [],
     "code": [
         {
             "name": "$constructor",
             "slot": 0,
             "code": [
                 9,
-                -1,
+                -2,
                 9,
                 0,
                 12,
-                0,
-                1,
-                0,
-                9,
-                0,
-                12,
-                1
+                0
             ]
         },
         {
