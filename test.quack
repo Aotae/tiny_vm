@@ -1,14 +1,12 @@
-class tester(x:Int,y:Int){
+class tester(x:String){
     this.x = x;
-    def test(){
+    def test():String{
         return this.x;
     }
 }
 
-a = tester(42);
-a.print();
-"\n".print();
-t = a.x;
+a = tester("hello");
+t = a.test();
+
 t.print();
-"\n".print();
 "\n".print();

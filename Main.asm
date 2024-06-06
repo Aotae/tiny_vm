@@ -1,29 +1,21 @@
 .class Main:Obj
 .method $constructor
-.local a,t
+    .local t,a
+    enter
 
-const 42
-new tester
-call tester:$constructor
-store a
-load a
-call tester:print
-pop
-const "\n"
-call String:print
-pop
-load a
-load_field tester:x
-store t
-load t
-call Int:print
-pop
-const "\n"
-call String:print
-pop
-const "\n"
-call String:print
-pop
+    const "hello"
+    new tester
+    call tester:$constructor
+    store a
+    load a
+    call tester:test
+    store t
+    load t
+    call String:print
+    pop
+    const "\n"
+    call String:print
+    pop
 
-return 0
+    return 0
 
