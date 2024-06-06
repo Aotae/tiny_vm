@@ -553,6 +553,11 @@ def main():
                 for node in tree.children:
                     node.infer(transformer.symboltable, pass_number=2)
                 transformer.typecheck(checker.check, tree)
+                
+                print("FINAL SYMBOL TABLE AND TREE")
+                transformer.print_symbol_table()
+                print()
+                transformer.print_ast(tree)
                 asm = transformer.generate_asm(tree)  # Add initial indent level
 
 

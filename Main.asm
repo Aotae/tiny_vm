@@ -1,6 +1,6 @@
 .class Main:Obj
 .method $constructor
-    .local t,a
+    .local a,t
     enter
 
     const "hello"
