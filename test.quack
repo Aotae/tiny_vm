@@ -1,15 +1,12 @@
-x = 2;
-z = 10;
-y = true;
-if y {
-    "hello x is less than z\n".print();
-}else{
-    "hello x is not less than z\n".print();
-    if z > x {
-        "x is greater than z\n".print();
+class tester(x:String){
+    this.x = x;
+    def test():String{
+        return this.x;
     }
 }
 
-a = z;
-b = x;
+a = tester("hello");
+t = a.test();
 
+t.print();
+"\n".print();

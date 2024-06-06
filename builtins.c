@@ -384,8 +384,8 @@ struct  class_struct  the_class_String_struct = {
             method_String_string,
             method_String_print,
             method_String_equals,
-            method_String_less,
-            method_String_plus
+            // method_String_less,
+            // method_String_plus
             }
 };
 

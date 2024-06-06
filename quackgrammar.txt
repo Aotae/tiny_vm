@@ -1,0 +1,95 @@
+?start: codeblock
+
+codeblock: statement+
+
+?statement: assignment
+    | method_call
+    | flow
+    | class_decl
+    | return_statement
+
+?condition: value evaluator value -> conditional
+    | value -> boolean
+
+logicalexpr: or_expr
+
+?or_expr: and_expr
+    | or_expr "or" and_expr -> or_
+
+?and_expr: not_expr
+    | and_expr "and" not_expr -> and_
+
+?not_expr: "not" not_expr -> not_
+    | condition
+
+?evaluator: ">" -> gt
+    | "<" -> lt
+    | "==" -> equals
+    | "!=" -> nequals
+
+?flow: ifstmt
+    | whilestmt
+
+?ifstmt: "if" logicalexpr "{" codeblock* "}" elsestmt? -> ifcall
+
+?elsestmt: "else" "{" codeblock* "}" -> elsecall
+
+?return_statement: "return" value? ";" -> return_stmt
+
+?whilestmt: "while" logicalexpr "{" codeblock* "}" -> whilecall
+
+?assignment: NAME "=" value ";" -> assign_var
+    | field "=" value ";" -> assign_field
+
+?method_call: calls ";"
+
+?class_decl: "class" NAME "(" formal_args? ")" "{" class_body "}" -> class_declaration
+    | "class" NAME "(" formal_args? ")" "extends" NAME "{" class_body "}" -> class_declaration_extended
+
+?method_decl: "def" NAME "(" argument_list ")" ":" NAME "{" codeblock* "}" -> mthd_p_decl_return
+    | "def" NAME "(" argument_list ")" "{" codeblock* "}" -> mthd_p_decl
+    | "def" NAME "(" ")"  ":" NAME  "{" codeblock* "}" -> mthd_decl_return
+    | "def" NAME "(" ")" "{" codeblock* "}" -> mthd_decl
+
+formal_args: formal_arg ("," formal_arg)*
+formal_arg: NAME ":" NAME
+
+argument_list: value ("," value)*
+
+class_body: (method_decl | statement)*
+
+?value: sum
+    | TRUE -> tf
+    | FALSE -> tf
+
+?sum: product
+    | sum "+" product   -> add
+    | sum "-" product   -> sub
+
+?product: calls
+    | product "*" calls  -> mul
+    | product "/" calls  -> div
+
+?calls: field
+    | method_invocation
+
+?field: atom
+    | field "." NAME -> field_access
+
+?method_invocation: field "." NAME "(" argument_list? ")" -> call_method
+
+?atom: NUMBER -> number
+    | STRING -> string
+    | NAME "(" argument_list? ")" -> new
+    | NAME -> var
+    | "(" sum ")"
+
+TRUE: "true"
+FALSE: "false"
+STRING: /"[^"]*"/
+
+%import common.CNAME -> NAME
+%import common.NUMBER
+%import common.WS_INLINE
+
+%ignore WS_INLINE
