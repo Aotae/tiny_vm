@@ -166,7 +166,25 @@ The `tiny_vm/bin` directory should now contain two executable programs.
 - `tiny_vm` is the tiny virtual machine that will execute instructions that we generate, first for a calculator and later for Quack programs. 
 
 
+# Quack
 Use bash scripts quack.sh and quackc.sh to compile and run your code and to just compile respectively
+currently the compiler has everything besides typecases implemented, though some of the implementations are not up to spec.
+classes: no type checking inside of user made classes at the moment, but you can make your own class and it might work, atleast a little bit.
+flow statements: pretty much good as far as I can tell
+Assignments and Fields: Basic functionality is there but its missing a bunch of the spec and has some bugs that need to be worked out, specifically field assignments needs a lot of work still.
+
+some test quack scripts are in the quacktests directory
+
+to compile and run a script use
+
+./quack.sh <path/name to quack file>
+
+to compile only
+
+./quackc.sh <path/name to quack file>
+
+
+
 
 
 
