@@ -1,8 +1,6 @@
 import os
 import lark.tree as t
 
-PRIMITIVES = ["String", "Obj", "Int", "Bool", "Nothing"]
-
 class ASTNode:
     def __init__(self):
         pass
@@ -113,10 +111,7 @@ class BinaryOperation(ASTNode):
     def infer(self, symboltable, current_class=None, pass_number=1):
         ltype = self.left.infer(symboltable, current_class, pass_number)
         rtype = self.right.infer(symboltable, current_class, pass_number)
-        if ltype == rtype:
-            self.inferred_type = ltype
-        else:
-            self.inferred_type = "Obj"
+        self.inferred_type = lca(ltype,rtype)
         symboltable[self.identifier] = self.inferred_type
         return self.inferred_type
 
@@ -137,12 +132,14 @@ class ClassDeclaration(ASTNode):
             symboltable[self.name] = self.inferred_type
             for arg_name, arg_type in self.args:
                 symboltable[f"{arg_name}"] = arg_type
-        
+
         for statement in self.body.children:
             if isinstance(statement, FieldAssign):
                 field_name = statement.obj.name
                 field_type = statement.value.infer(symboltable, current_class, pass_number)
                 self.fields[field_name] = field_type
+                symboltable[f"this.{field_name}"] = field_type
+                
             elif isinstance(statement, MethodDeclaration):
                 method_name = statement.methodname
                 return_type = statement.inferred_type
@@ -201,6 +198,7 @@ class Methods(ASTNode):
         self.obj = obj
         self.method = method
         self.args = generate_args(args)
+        self.inferred_type = "Nothing"
 
     def infer(self, symboltable, current_class=None, pass_number=1):
         obj_type = self.obj.infer(symboltable, current_class, pass_number)
@@ -226,12 +224,22 @@ class FieldAssign(ASTNode):
         self.inferred_type = None
 
     def infer(self, symboltable, current_class=None, pass_number=1):
-        # print("FA",self.value)
         obj_type = self.obj.infer(symboltable, current_class, pass_number)
         value_type = self.value.infer(symboltable, current_class, pass_number)
         field_key = f"{obj_type}.{self.name}"
-        symboltable[field_key] = value_type
-        self.inferred_type = value_type
+
+        if field_key in symboltable:
+            existing_type = symboltable[field_key]
+            if existing_type != value_type:
+                # Update the type using LCA if within a class declaration
+                if current_class is not None:
+                    self.inferred_type = self.lca(existing_type, value_type)
+                else:
+                    self.inferred_type = "Obj"
+        else:
+            self.inferred_type = value_type
+
+        symboltable[field_key] = self.inferred_type
         return self.inferred_type
 
 class FieldAccess(ASTNode):
@@ -272,8 +280,10 @@ class NewNode(ASTNode):
             symboltable[self.inferred_type] = self.inferred_type
         if isinstance(self.args,t.Tree):
             for arg in self.args.children:
+                print("hello",arg)
                 arg.infer(symboltable, current_class, pass_number)
         elif isinstance(self.args,ASTNode):
+            print("hello", arg)
             self.args.infer(symboltable,current_class,pass_number)
             
         return self.inferred_type
@@ -303,3 +313,9 @@ def generate_args(args):
         for arg in args.children:
             arglist.append(arg)
     return arglist
+
+def lca(type1, type2):
+    # Assuming a simple hierarchy where Obj is the LCA for different types
+    if type1 == type2:
+        return type1
+    return "Obj"

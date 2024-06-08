@@ -3,7 +3,8 @@
     "super": "Obj",
     "imports": [
         "tester",
-        "Obj"
+        "Obj",
+        "String"
     ],
     "methods": [
         "$constructor",
@@ -13,12 +14,23 @@
         "test"
     ],
     "fields": [
-        "x"
+        "x",
+        "y",
+        "c"
     ],
-    "n_fields": 1,
+    "n_fields": 3,
     "n_methods": 5,
     "n_inherited": 4,
-    "constants": [],
+    "constants": [
+        {
+            "kind": "s",
+            "value": "tester constructor is being called\n"
+        },
+        {
+            "kind": "s",
+            "value": "test is being called\n"
+        }
+    ],
     "code": [
         {
             "name": "$constructor",
@@ -26,13 +38,54 @@
             "code": [
                 4,
                 9,
-                -1,
+                -2,
                 9,
                 0,
                 12,
                 0,
+                9,
+                -1,
+                9,
+                0,
+                12,
+                1,
+                9,
+                0,
+                11,
+                1,
+                2,
+                2,
+                7,
+                9,
+                0,
+                11,
+                1,
+                9,
+                0,
+                11,
+                0,
+                2,
+                0,
+                9,
+                0,
+                12,
+                2,
+                9,
+                0,
+                11,
+                2,
+                2,
+                2,
+                7,
+                1,
+                0,
+                2,
+                2,
+                7,
+                9,
+                0,
                 5,
-                1
+                2
             ]
         },
         {
@@ -40,6 +93,11 @@
             "slot": 4,
             "code": [
                 4,
+                1,
+                1,
+                2,
+                2,
+                7,
                 9,
                 0,
                 11,

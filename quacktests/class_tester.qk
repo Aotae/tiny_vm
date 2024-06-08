@@ -1,0 +1,17 @@
+class tester(x:String,y:Int){
+    this.x = x;
+    this.y = y;
+    this.y.print();
+    "tester constructor is being called\n".print();
+    def test():String{
+        "test is being called\n".print();
+        return this.x;
+    }
+}
+
+a = tester("hello\n",
+           "i'm pretty sure this should error since not an int, but I haven't gotten to it yet\n");
+t = a.test();
+"\ndoing something along the lines of a.x.print() won't work right now\n".print();
+t.print();
+"\n".print();

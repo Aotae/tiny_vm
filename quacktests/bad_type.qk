@@ -1,0 +1,13 @@
+a = 12;
+b = 13;
+c = a+b;
+c.print();
+"\n\n".print();
+
+c = "hello";
+
+c.print();
+"\n this should print hello since Obj does have a print method \n\n".print();
+
+c = c + 7;
+"this will throw error, Obj does not have plus method\n".print();

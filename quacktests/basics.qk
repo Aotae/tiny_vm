@@ -1,0 +1,15 @@
+a = 7+7;
+
+a.print();
+
+"\n".print();
+
+b = a - 7;
+
+b.print();
+
+"\n".print();
+
+b = (b + a)*8;
+
+b.print();

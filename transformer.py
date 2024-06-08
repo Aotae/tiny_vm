@@ -314,6 +314,7 @@ class ASTGenerator(Transformer):
             return ''
         if isinstance(node, t.Tree):
             for statement in node.children:
+                print(statement)
                 checker(statement)
 
     def generate_asm(self, node=None, for_store=False, indent_level=0):
@@ -345,7 +346,7 @@ class ASTGenerator(Transformer):
                 else:
                     constructor_body += self.generate_asm(statement) + "\n"
             
-            constructor_asm = f"{constructor}\n{constructor_args}\n{inner_indent}enter\n{constructor_body}{inner_indent}return {len(node.args)}\n"
+            constructor_asm = f"{constructor}\n{constructor_args}\n{inner_indent}enter\n{constructor_body}{inner_indent}load $\nreturn {len(node.args)}\n"
             class_asm_code = f".class {classasm}\n{fields}\n{methods}\n{constructor_asm}\n{method_bodies}"
             self.write_class_asm(classname, class_asm_code)
             return ""
@@ -541,23 +542,28 @@ def main():
                 content = file_stream.read().replace("\n", "")
                 print()
                 tree = calc(content)
-                checker = ss.Checker(transformer.symboltable)  # Update with actual checker if needed
                 # First pass: build the AST and collect symbols
+                # kind of abusing the infer function honestly
+                # this should be its own thing
                 for node in tree.children:
                     node.infer(transformer.symboltable, pass_number=1)
-                print()
-                transformer.print_symbol_table()
-                print()
-                transformer.print_ast(tree)
+                    
+                # print()
+                # transformer.print_symbol_table()
+                # print()
+                
+                # transformer.print_ast(tree)
                 # Second pass: resolve `this` references
                 for node in tree.children:
                     node.infer(transformer.symboltable, pass_number=2)
-                transformer.typecheck(checker.check, tree)
-                
+                    
                 print("FINAL SYMBOL TABLE AND TREE")
                 transformer.print_symbol_table()
                 print()
                 transformer.print_ast(tree)
+                checker = ss.Checker(transformer.symboltable)
+                transformer.typecheck(checker.check, tree)
+
                 asm = transformer.generate_asm(tree)  # Add initial indent level
 
 
