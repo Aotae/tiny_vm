@@ -1,7 +1,6 @@
 .class tester:Obj
 .field x
 .field y
-.field c
 .method test forward
 .method $constructor
 .args x,y
@@ -14,18 +13,7 @@
     store_field $:y
     load $
     load_field $:y
-    call String:print
-    pop
-    load $
-    load_field $:y
-    load $
-    load_field $:x
-    call Obj:minus
-    load $
-    store_field $:c
-    load $
-    load_field $:c
-    call Obj:print
+    call Int:print
     pop
     const "tester constructor is being called\n"
     call String:print

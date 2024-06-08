@@ -129,8 +129,8 @@ class Checker:
                 self.check(statement)
 
     def check_method_call(self, node):
-        obj_type = self.symboltable.get(node.obj.name, "Obj")
-        method_key = f"{obj_type}.{node.method}"
+        obj_type = self.get_node_type(node.obj)
+        method_key = f"{obj_type}:{node.method}"
         method_type = self.symboltable.get(method_key, None)
 
         if method_type is None and obj_type not in self.methods.get(node.method, []):
